@@ -41,7 +41,7 @@ defmodule Exadb.MixProject do
       files: ~w(lib guides .formatter.exs mix.exs README.md CHANGELOG.md),
       licenses: ["Apache-2.0"],
       links: %{
-        "GitHub" => "https://github.com/your-org/exadb",
+        "GitHub" => "https://github.com/metehan/exadb",
         "ArangoDB HTTP API" => "https://docs.arango.ai/arangodb/stable/develop/http-api/"
       }
     ]
