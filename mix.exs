@@ -12,8 +12,8 @@ defmodule Exadb.MixProject do
       deps: deps(),
       docs: docs(),
       name: "Exadb",
-      source_url: "https://github.com/your-org/exadb",
-      homepage_url: "https://github.com/your-org/exadb"
+      source_url: "https://github.com/metehan/exadb",
+      homepage_url: "https://github.com/metehan/exadb"
     ]
   end
 
