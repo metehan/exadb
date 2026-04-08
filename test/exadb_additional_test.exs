@@ -49,25 +49,26 @@ defmodule ExadbAdditionalTest do
       assert Exadb.Tools.aql_cleaner("RETURN 1", "fallback") == "fallback"
 
       assert {:error, "boom"} = Exadb.Tools.format_api_error(%{"errorMessage" => "boom"})
-      assert %{ok: true} = Exadb.Tools.format_api_error(%{ok: true})
+      assert {:ok, %{ok: true}} = Exadb.Tools.format_api_error(%{ok: true})
       assert {:error, "bad"} = Exadb.Tools.format_api_error(%{"errorMessage" => "bad"}, %{})
 
-      assert %{"_id" => "users/1", "email" => "a@example.com"} =
+      assert {:ok, %{"_id" => "users/1", "email" => "a@example.com"}} =
                Exadb.Tools.format_api_error(
                  %{"_id" => "users/1"},
                  %{"email" => "a@example.com"}
                )
 
-      assert [
-               %{"_id" => "users/1", "email" => "a@example.com"},
-               %{"_id" => "users/2", "email" => "b@example.com"}
-             ] =
+      assert {:ok,
+              [
+                %{"_id" => "users/1", "email" => "a@example.com"},
+                %{"_id" => "users/2", "email" => "b@example.com"}
+              ]} =
                Exadb.Tools.format_api_error(
                  [%{"_id" => "users/1"}, %{"_id" => "users/2"}],
                  [%{"email" => "a@example.com"}, %{"email" => "b@example.com"}]
                )
 
-      assert [%{"_id" => "users/1"}] =
+      assert {:ok, [%{"_id" => "users/1"}]} =
                Exadb.Tools.format_api_error(
                  [%{"_id" => "users/1"}],
                  [%{"email" => "a@example.com"}, %{"email" => "b@example.com"}]
@@ -83,7 +84,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => ["_system", "tenant"]}))
       end)
 
-      assert ["_system", "tenant"] = Exadb.Database.get_all(admin_opts(bypass))
+      assert {:ok, ["_system", "tenant"]} = Exadb.Database.get_all(admin_opts(bypass))
 
       Bypass.expect_once(bypass, "POST", "/_api/database", fn conn ->
         {body, conn} = read_json(conn)
@@ -91,13 +92,13 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"result" => true}))
       end)
 
-      assert %{"result" => true} = Exadb.Database.new("tenant", admin_opts(bypass))
+      assert {:ok, %{"result" => true}} = Exadb.Database.new("tenant", admin_opts(bypass))
 
       Bypass.expect_once(bypass, "DELETE", "/_api/database/tenant", fn conn ->
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => true}))
       end)
 
-      assert %{"result" => true} = Exadb.Database.vaporize("tenant", admin_opts(bypass))
+      assert {:ok, %{"result" => true}} = Exadb.Database.vaporize("tenant", admin_opts(bypass))
     end
 
     test "covers remaining user endpoints" do
@@ -109,7 +110,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"user" => "alice", "active" => true}))
       end)
 
-      assert %{"user" => "alice"} =
+      assert {:ok, %{"user" => "alice"}} =
                Exadb.User.new(
                  %{"user" => "alice", "passwd" => "pw", "active" => true},
                  admin_opts(bypass)
@@ -119,13 +120,13 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => [%{"user" => "alice"}]}))
       end)
 
-      assert %{"result" => [%{"user" => "alice"}]} = Exadb.User.get_all(admin_opts(bypass))
+      assert {:ok, %{"result" => [%{"user" => "alice"}]}} = Exadb.User.get_all(admin_opts(bypass))
 
       Bypass.expect_once(bypass, "GET", "/_api/user/alice", fn conn ->
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"user" => "alice", "active" => true}))
       end)
 
-      assert %{"user" => "alice"} = Exadb.User.get("alice", admin_opts(bypass))
+      assert {:ok, %{"user" => "alice"}} = Exadb.User.get("alice", admin_opts(bypass))
 
       Bypass.expect_once(bypass, "PATCH", "/_api/user/alice", fn conn ->
         {body, conn} = read_json(conn)
@@ -133,21 +134,22 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"user" => "alice", "active" => false}))
       end)
 
-      assert %{"active" => false} =
+      assert {:ok, %{"active" => false}} =
                Exadb.User.update("alice", %{"active" => false}, admin_opts(bypass))
 
       Bypass.expect_once(bypass, "DELETE", "/_api/user/alice/database/example", fn conn ->
         Plug.Conn.resp(conn, 202, Poison.encode!(%{"code" => 202, "error" => false}))
       end)
 
-      assert %{"code" => 202, "error" => false} =
+      assert {:ok, %{"code" => 202, "error" => false}} =
                Exadb.User.remove_access("alice", "example", admin_opts(bypass))
 
       Bypass.expect_once(bypass, "DELETE", "/_api/user/alice", fn conn ->
         Plug.Conn.resp(conn, 202, Poison.encode!(%{"code" => 202, "error" => false}))
       end)
 
-      assert %{"code" => 202, "error" => false} = Exadb.User.vaporize("alice", admin_opts(bypass))
+      assert {:ok, %{"code" => 202, "error" => false}} =
+               Exadb.User.vaporize("alice", admin_opts(bypass))
     end
 
     test "covers default-arity database and user wrappers via environment configuration" do
@@ -159,13 +161,13 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => ["example"]}))
       end)
 
-      assert ["example"] = Exadb.Database.get_all()
+      assert {:ok, ["example"]} = Exadb.Database.get_all()
 
       Bypass.expect_once(bypass, "GET", "/_api/user/alice/database", fn conn ->
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => %{"example" => "rw"}}))
       end)
 
-      assert %{"example" => "rw"} = Exadb.Database.user_dbs("alice")
+      assert {:ok, %{"example" => "rw"}} = Exadb.Database.user_dbs("alice")
 
       Bypass.expect_once(bypass, "POST", "/_api/database", fn conn ->
         {body, conn} = read_json(conn)
@@ -173,7 +175,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"result" => true}))
       end)
 
-      assert %{"result" => true} = Exadb.Database.new("tenant")
+      assert {:ok, %{"result" => true}} = Exadb.Database.new("tenant")
 
       Bypass.expect_once(bypass, "POST", "/_api/database", fn conn ->
         {body, conn} = read_json(conn)
@@ -182,13 +184,13 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"result" => true}))
       end)
 
-      assert %{"result" => true} = Exadb.Database.new_db_and_user("tenant", "pw")
+      assert {:ok, %{"result" => true}} = Exadb.Database.new_db_and_user("tenant", "pw")
 
       Bypass.expect_once(bypass, "DELETE", "/_api/database/tenant", fn conn ->
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => true}))
       end)
 
-      assert %{"result" => true} = Exadb.Database.vaporize("tenant")
+      assert {:ok, %{"result" => true}} = Exadb.Database.vaporize("tenant")
 
       Bypass.expect_once(bypass, "POST", "/_api/user", fn conn ->
         {body, conn} = read_json(conn)
@@ -196,35 +198,36 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"user" => "alice"}))
       end)
 
-      assert %{"user" => "alice"} = Exadb.User.new(%{"user" => "alice", "passwd" => "pw"})
+      assert {:ok, %{"user" => "alice"}} = Exadb.User.new(%{"user" => "alice", "passwd" => "pw"})
 
       Bypass.expect_once(bypass, "GET", "/_api/user", fn conn ->
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => [%{"user" => "alice"}]}))
       end)
 
-      assert %{"result" => [%{"user" => "alice"}]} = Exadb.User.get_all()
+      assert {:ok, %{"result" => [%{"user" => "alice"}]}} = Exadb.User.get_all()
 
       Bypass.expect_once(bypass, "GET", "/_api/user/alice", fn conn ->
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"user" => "alice"}))
       end)
 
-      assert %{"user" => "alice"} = Exadb.User.get("alice")
+      assert {:ok, %{"user" => "alice"}} = Exadb.User.get("alice")
 
       Bypass.expect_once(bypass, "PUT", "/_api/user/alice", fn conn ->
         {body, conn} = read_json(conn)
-        assert body == %{"passwd" => "secure"}
+        assert body == %{"passwd" => "new-secret"}
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"user" => "alice"}))
       end)
 
-      assert %{"user" => "alice"} = Exadb.User.replace("alice")
+      assert {:ok, %{"user" => "alice"}} =
+               Exadb.User.replace("alice", %{"passwd" => "new-secret"})
 
       Bypass.expect_once(bypass, "PATCH", "/_api/user/alice", fn conn ->
         {body, conn} = read_json(conn)
-        assert body == %{"passwd" => "secure"}
+        assert body == %{"active" => true}
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"user" => "alice"}))
       end)
 
-      assert %{"user" => "alice"} = Exadb.User.update("alice")
+      assert {:ok, %{"user" => "alice"}} = Exadb.User.update("alice", %{"active" => true})
 
       Bypass.expect_once(bypass, "PUT", "/_api/user/alice/database/example", fn conn ->
         {body, conn} = read_json(conn)
@@ -232,19 +235,21 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"code" => 200, "error" => false}))
       end)
 
-      assert %{"code" => 200, "error" => false} = Exadb.User.give_access("alice", "example")
+      assert {:ok, %{"code" => 200, "error" => false}} =
+               Exadb.User.give_access("alice", "example")
 
       Bypass.expect_once(bypass, "DELETE", "/_api/user/alice/database/example", fn conn ->
         Plug.Conn.resp(conn, 202, Poison.encode!(%{"code" => 202, "error" => false}))
       end)
 
-      assert %{"code" => 202, "error" => false} = Exadb.User.remove_access("alice", "example")
+      assert {:ok, %{"code" => 202, "error" => false}} =
+               Exadb.User.remove_access("alice", "example")
 
       Bypass.expect_once(bypass, "DELETE", "/_api/user/alice", fn conn ->
         Plug.Conn.resp(conn, 202, Poison.encode!(%{"code" => 202, "error" => false}))
       end)
 
-      assert %{"code" => 202, "error" => false} = Exadb.User.vaporize("alice")
+      assert {:ok, %{"code" => 202, "error" => false}} = Exadb.User.vaporize("alice")
     end
   end
 
@@ -268,7 +273,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 202, Poison.encode!(%{"_id" => "users/1", "_rev" => "def"}))
       end)
 
-      assert %{"_rev" => "def", "email" => "patched@example.com"} =
+      assert {:ok, %{"_rev" => "def", "email" => "patched@example.com"}} =
                Exadb.Doc.persist(
                  %{"_id" => "users/1", "_rev" => "abc", "email" => "patched@example.com"},
                  db_opts(bypass)
@@ -355,7 +360,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"name" => "items", "type" => 2}))
       end)
 
-      assert %{"name" => "items"} =
+      assert {:ok, %{"name" => "items"}} =
                Exadb.Collection.new_collection("items", %{}, db_opts(bypass, inc: true))
 
       Bypass.expect_once(bypass, "POST", "/_db/example/_api/collection", fn conn ->
@@ -364,7 +369,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"name" => "links", "type" => 3}))
       end)
 
-      assert %{"type" => 3} = Exadb.Collection.new_edge("links", %{}, db_opts(bypass))
+      assert {:ok, %{"type" => 3}} = Exadb.Collection.new_edge("links", %{}, db_opts(bypass))
 
       Bypass.expect_once(bypass, "GET", "/_db/example/_api/collection", fn conn ->
         Plug.Conn.resp(
@@ -379,15 +384,14 @@ defmodule ExadbAdditionalTest do
         )
       end)
 
-      assert [%{"name" => "a"}, %{"name" => "_b"}] =
+      assert {:ok, [%{"name" => "a"}]} =
                Exadb.Collection.get_all(db_opts(bypass, inclulde_system: true))
     end
 
     test "covers query cursor branches and stream halting" do
       bypass = Bypass.open()
 
-      assert {:error, :no_more_result} =
-               Exadb.Query.cursor(%{"hasMore" => false}, db_opts(bypass))
+      assert {:done, _} = Exadb.Query.cursor(%{"hasMore" => false}, db_opts(bypass))
 
       assert {:error, :boom} = Exadb.Query.cursor({:error, :boom}, db_opts(bypass))
 
@@ -397,7 +401,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"result" => [1]}))
       end)
 
-      assert %{"result" => [1]} = Exadb.Query.cursor("RETURN 1", db_opts(bypass))
+      assert {:ok, %{"result" => [1]}} = Exadb.Query.cursor("RETURN 1", db_opts(bypass))
 
       Bypass.expect_once(bypass, "POST", "/_db/example/_api/cursor", fn conn ->
         Plug.Conn.resp(conn, 404, Poison.encode!(%{"code" => 404}))
@@ -422,13 +426,13 @@ defmodule ExadbAdditionalTest do
         )
       end)
 
-      assert [%{"name" => "tmp"}] = Exadb.Collection.get_all()
+      assert {:ok, [%{"name" => "tmp"}]} = Exadb.Collection.get_all()
 
       Bypass.expect_once(bypass, "GET", "/_db/example/_api/document/users/404", fn conn ->
         Plug.Conn.resp(conn, 404, Poison.encode!(%{"error" => true, "errorMessage" => "missing"}))
       end)
 
-      assert nil == Exadb.Doc.get_property("users/404", "email")
+      assert {:error, "missing"} = Exadb.Doc.get_property("users/404", "email")
 
       Bypass.expect_once(bypass, "POST", "/_db/example/_api/cursor", fn conn ->
         {body, conn} = read_json(conn)
@@ -436,7 +440,7 @@ defmodule ExadbAdditionalTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"result" => [1]}))
       end)
 
-      assert %{"result" => [1]} = Exadb.Query.run("RETURN 1", %{})
+      assert {:ok, [1]} = Exadb.Query.run("RETURN 1", %{})
 
       Bypass.expect_once(bypass, "POST", "/_db/example/_api/cursor", fn conn ->
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"error" => true, "errorMessage" => "broken"}))

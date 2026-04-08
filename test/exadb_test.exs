@@ -31,7 +31,7 @@ defmodule ExadbTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"result" => true}))
       end)
 
-      assert %{"result" => true} =
+      assert {:ok, %{"result" => true}} =
                Exadb.Database.new_db_and_user("tenant_a", "pw123", admin_opts(bypass))
     end
 
@@ -42,7 +42,7 @@ defmodule ExadbTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => %{"example" => "rw"}}))
       end)
 
-      assert %{"example" => "rw"} = Exadb.Database.user_dbs("alice", admin_opts(bypass))
+      assert {:ok, %{"example" => "rw"}} = Exadb.Database.user_dbs("alice", admin_opts(bypass))
     end
   end
 
@@ -61,7 +61,7 @@ defmodule ExadbTest do
         )
       end)
 
-      assert %{"_id" => "users/123", "email" => "jane@example.com"} =
+      assert {:ok, %{"_id" => "users/123", "email" => "jane@example.com"}} =
                Exadb.Doc.persist(%{"email" => "jane@example.com"}, db_opts(bypass, col: "users"))
     end
 
@@ -89,7 +89,7 @@ defmodule ExadbTest do
         "email" => "jane@example.com"
       }
 
-      assert %{"_id" => "users/456", "email" => "jane@example.com"} =
+      assert {:ok, %{"_id" => "users/456", "email" => "jane@example.com"}} =
                Exadb.Doc.persist_new(record, db_opts(bypass))
     end
 
@@ -108,7 +108,7 @@ defmodule ExadbTest do
         )
       end)
 
-      assert [%{"_id" => "users/1"}, %{"_id" => "users/2"}] =
+      assert {:ok, [%{"_id" => "users/1"}, %{"_id" => "users/2"}]} =
                Exadb.Doc.fetch_multi(["users/1", "users/2"], db_opts(bypass))
     end
   end
@@ -131,11 +131,11 @@ defmodule ExadbTest do
       end
 
       Bypass.expect_once(bypass, "GET", "/_db/example/_api/collection", responder)
-      assert [%{"name" => "users"}] = Exadb.Collection.get_all(db_opts(bypass))
+      assert {:ok, [%{"name" => "users"}]} = Exadb.Collection.get_all(db_opts(bypass))
 
       Bypass.expect_once(bypass, "GET", "/_db/example/_api/collection", responder)
 
-      assert [%{"name" => "users"}, %{"name" => "_users"}] =
+      assert {:ok, [%{"name" => "users"}, %{"name" => "_users"}]} =
                Exadb.Collection.get_all(db_opts(bypass, include_system: true))
     end
   end
@@ -148,8 +148,7 @@ defmodule ExadbTest do
         Plug.Conn.resp(conn, 201, Poison.encode!(%{"result" => []}))
       end)
 
-      assert {:error, :not_found} =
-               Exadb.Query.run("FOR doc IN users RETURN doc", %{}, db_opts(bypass))
+      assert {:ok, []} = Exadb.Query.run("FOR doc IN users RETURN doc", %{}, db_opts(bypass))
     end
   end
 
@@ -163,7 +162,7 @@ defmodule ExadbTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"result" => true}))
       end)
 
-      assert %{"result" => true} =
+      assert {:ok, %{"result" => true}} =
                Exadb.User.give_access("alice", "example", admin_opts(bypass, level: "ro"))
     end
 
@@ -176,7 +175,7 @@ defmodule ExadbTest do
         Plug.Conn.resp(conn, 200, Poison.encode!(%{"user" => "alice"}))
       end)
 
-      assert %{"user" => "alice"} =
+      assert {:ok, %{"user" => "alice"}} =
                Exadb.User.replace(
                  "alice",
                  %{"passwd" => "new-secret", "active" => true},

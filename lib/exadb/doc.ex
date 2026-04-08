@@ -24,27 +24,37 @@ defmodule Exadb.Doc do
 
   @doc """
   Returns a single document by `_id`.
+
+  Returns `{:ok, document}` on success or `{:error, message}` when the document
+  is not found or ArangoDB reports an error.
   """
+  @spec fetch(binary(), keyword()) :: {:ok, map()} | {:error, binary()}
   def fetch(doc, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
 
     case Http.get!("#{dblink}/document/#{doc}") do
       %{"error" => true, "errorMessage" => message} -> {:error, message}
-      record -> record
+      record -> {:ok, record}
     end
   end
 
   @doc """
   Fetches multiple documents by `_id`.
+
+  Returns `{:ok, list}` on success or `{:error, message}` on failure.
   """
+  @spec fetch_multi(list(), keyword()) :: {:ok, list()} | {:error, binary()}
   def fetch_multi(doc_ids, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
 
-    Http.post!("#{dblink}/cursor", %{
-      query: "RETURN DOCUMENT(@list)",
-      bindVars: %{list: doc_ids}
-    })
-    |> Map.get("result")
+    case Http.post!("#{dblink}/cursor", %{
+           query: "RETURN DOCUMENT(@list)",
+           bindVars: %{list: doc_ids}
+         }) do
+      %{"error" => true, "errorMessage" => message} -> {:error, message}
+      %{"result" => list} -> {:ok, list}
+      unknown -> {:error, unknown}
+    end
   end
 
   @doc """
@@ -92,41 +102,62 @@ defmodule Exadb.Doc do
     |> persist(dblink: dblink, col: col)
   end
 
+  @doc """
+  Returns the value of a single property from a document.
+
+  Returns `nil` when the property is absent. Propagates `{:error, message}` if
+  the document cannot be fetched.
+  """
   def get_property(document_id, property, opt \\ []) do
     case fetch(document_id, opt) do
-      {:error, _reason} -> nil
-      %{} = doc -> doc[property]
+      {:error, _} = err -> err
+      {:ok, doc} -> doc[property]
     end
   end
 
+  @doc """
+  Appends a value to a list property of a document, avoiding duplicates.
+
+  Returns `{:error, message}` if the property is not a list or the fetch fails.
+  """
   def push(document_id, property, value, opt \\ []) do
     new_list = List.flatten([value])
 
-    new_value =
-      case get_property(document_id, property, opt) do
-        value when is_list(value) -> value ++ (new_list -- value)
-        nil -> new_list
-        _ -> false
-      end
+    case get_property(document_id, property, opt) do
+      {:error, _} = err ->
+        err
 
-    if is_list(new_value) do
-      update_property(document_id, property, new_value, opt)
-    else
-      {:error, "#{property} is not a list"}
+      current ->
+        new_value =
+          case current do
+            v when is_list(v) -> v ++ (new_list -- v)
+            nil -> new_list
+            _ -> false
+          end
+
+        if is_list(new_value) do
+          update_property(document_id, property, new_value, opt)
+        else
+          {:error, "#{property} is not a list"}
+        end
     end
   end
 
-  def pop(document_id, property, value, opt \\ []) do
-    new_value =
-      case get_property(document_id, property, opt) do
-        current when is_list(current) -> current -- [value]
-        _ -> false
-      end
+  @doc """
+  Removes a value from a list property of a document.
 
-    if is_list(new_value) do
-      update_property(document_id, property, new_value, opt)
-    else
-      {:error, "#{property} is not a list"}
+  Returns `{:error, message}` if the property is not a list or the fetch fails.
+  """
+  def pop(document_id, property, value, opt \\ []) do
+    case get_property(document_id, property, opt) do
+      {:error, _} = err ->
+        err
+
+      current when is_list(current) ->
+        update_property(document_id, property, current -- [value], opt)
+
+      _ ->
+        {:error, "#{property} is not a list"}
     end
   end
 
@@ -156,11 +187,15 @@ defmodule Exadb.Doc do
 
   @doc """
   Returns the first matching document for a simple field-value lookup.
+
+  Returns `nil` when no document matches. Propagates `{:error, message}` on
+  AQL or network failures.
   """
   def get_one(vars_values, opt \\ []) when is_map(vars_values) do
     case get(vars_values, 1, opt) do
-      {:error, message} -> {:error, message}
-      [first] -> first
+      {:error, _} = err -> err
+      {:ok, [first | _]} -> first
+      {:ok, []} -> nil
     end
   end
 
@@ -169,7 +204,10 @@ defmodule Exadb.Doc do
 
   This helper builds a basic AQL filter from the provided map and is a good fit
   when you want a quick lookup without writing the query manually.
+
+  Returns `{:ok, list}` on success (list may be empty).
   """
+  @spec get(map(), pos_integer(), keyword()) :: {:ok, list()} | {:error, binary()}
   def get(vars_values, limit \\ 1000, opt \\ []) do
     %{dblink: dblink, col: col} = Tools.dblink_opts(opt)
 
@@ -185,8 +223,7 @@ defmodule Exadb.Doc do
              bindVars: vars_values
            }) do
         %{"error" => true, "errorMessage" => message} -> {:error, message}
-        %{"result" => []} -> {:error, :not_found}
-        %{"result" => list} -> list
+        %{"result" => list} -> {:ok, list}
         unknown -> {:error, unknown}
       end
     rescue

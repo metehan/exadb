@@ -46,10 +46,15 @@ defmodule Exadb.Collection do
 
   @doc """
   Deletes a collection.
+
+  Use `delete` for schema-level objects (collections, indexes, graphs).
+  Use `vaporize` for runtime data records (documents).
   """
   def delete(name, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
+
     Http.delete!("#{dblink}/collection/#{name}")
+    |> Tools.format_api_error()
   end
 
   @doc """
@@ -68,26 +73,37 @@ defmodule Exadb.Collection do
   By default system collections are filtered out. Pass `include_system: true`
   to keep them in the result. Pass `expanded: true` to return collection
   properties instead of the compact listing.
+
+  Returns `{:ok, list}` on success.
   """
   def get_all(opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
-    include_system = Keyword.get(opt, :include_system, Keyword.get(opt, :inclulde_system, false))
+    include_system = Keyword.get(opt, :include_system, false)
 
-    all =
-      Http.get!("#{dblink}/collection")
-      |> Map.get("result")
+    case Http.get!("#{dblink}/collection") do
+      %{"error" => true, "errorMessage" => message} ->
+        {:error, message}
 
-    all =
-      if include_system do
-        all
-      else
-        Enum.filter(all, fn item -> item["isSystem"] == false end)
-      end
+      %{"result" => result} ->
+        all =
+          if include_system do
+            result
+          else
+            Enum.filter(result, fn item -> item["isSystem"] == false end)
+          end
 
-    if opt[:expanded] do
-      Enum.map(all, fn item -> get(item["name"], opt) end)
-    else
-      all
+        if opt[:expanded] do
+          {:ok,
+           Enum.map(all, fn item ->
+             {:ok, props} = get(item["name"], opt)
+             props
+           end)}
+        else
+          {:ok, all}
+        end
+
+      unknown ->
+        {:error, unknown}
     end
   end
 
@@ -96,20 +112,22 @@ defmodule Exadb.Collection do
   """
   def get(collection, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
+
     Http.get!("#{dblink}/collection/#{collection}/properties")
+    |> Tools.format_api_error()
   end
 
   @doc """
   Checks whether a collection exists.
   """
+  @spec is_there?(binary(), keyword()) :: boolean() | {:error, binary()}
   def is_there?(name, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
-    api_url = "#{dblink}/collection/#{name}"
 
-    case HTTPoison.get(api_url, [], hackney: [pool: :arango_db]) do
-      {:ok, %HTTPoison.Response{status_code: 200}} -> true
-      {:ok, %HTTPoison.Response{status_code: 404}} -> false
-      {:error, %HTTPoison.Error{reason: reason}} -> {:error, reason}
+    case Http.get!("#{dblink}/collection/#{name}") do
+      %{"code" => 404} -> false
+      %{"error" => true, "errorMessage" => message} -> {:error, message}
+      %{} -> true
     end
   end
 end

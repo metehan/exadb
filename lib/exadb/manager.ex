@@ -21,7 +21,9 @@ defmodule Exadb.Manager do
   Deletes all collections in a database.
   """
   def clean_database(dblink) do
-    Collection.get_all(dblink: dblink)
+    {:ok, collections} = Collection.get_all(dblink: dblink)
+
+    collections
     |> Enum.map(& &1["name"])
     |> Enum.map(&Collection.delete(&1, dblink: dblink))
   end
@@ -37,7 +39,7 @@ defmodule Exadb.Manager do
   def copy_database(dblink_from, dblink_to, opt \\ []) do
     if Keyword.get(opt, :clean_target), do: clean_database(dblink_to)
 
-    collections = Collection.get_all(dblink: dblink_from, expanded: true)
+    {:ok, collections} = Collection.get_all(dblink: dblink_from, expanded: true)
     collection_names = Enum.map(collections, & &1["name"])
 
     collections
@@ -51,9 +53,12 @@ defmodule Exadb.Manager do
     end)
 
     collection_names
-    |> Enum.map(&%{collection: &1, indexes: Index.clean_list(&1, dblink_from)})
+    |> Enum.map(fn name ->
+      {:ok, indexes} = Index.clean_list(name, dblink: dblink_from)
+      %{collection: name, indexes: indexes}
+    end)
     |> Enum.reject(&(&1.indexes == []))
-    |> Enum.map(&Index.new(&1.collection, &1.indexes, dblink_to))
+    |> Enum.map(&Index.new(&1.collection, &1.indexes, dblink: dblink_to))
 
     case Keyword.get(opt, :include_data, :all) do
       :initial ->

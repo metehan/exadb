@@ -13,18 +13,18 @@ defmodule Exadb.Query do
   alias Exadb.Tools
 
   @doc """
-  Runs an AQL query and returns the decoded response.
+  Runs an AQL query and returns the result list.
 
-  Returns `{:error, :not_found}` for empty result sets and `{:error, message}`
-  when ArangoDB reports a query error.
+  Returns `{:ok, list}` on success (list may be empty).
+  Returns `{:error, message}` when ArangoDB reports a query error.
   """
+  @spec run(binary(), map(), keyword()) :: {:ok, list()} | {:error, binary()}
   def run(query, vars, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
 
     case Http.post!("#{dblink}/cursor", %{query: query, bindVars: vars}) do
       %{"error" => true, "errorMessage" => message} -> {:error, message}
-      %{"result" => []} -> {:error, :not_found}
-      %{"result" => _result} = results -> results
+      %{"result" => result} -> {:ok, result}
       unknown -> {:error, unknown}
     end
   end
@@ -37,13 +37,17 @@ defmodule Exadb.Query do
   - a binary AQL query
   - a map used to create a cursor
   - a previous cursor response with `"id"` and `"hasMore"`
+
+  Returns `{:ok, cursor_response}` when a page is received,
+  `{:done, last_response}` when the cursor is exhausted (no more pages), or
+  `{:error, message}` on failure.
   """
   def cursor(query, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
 
     case query do
       %{"hasMore" => false} ->
-        {:error, :no_more_result}
+        {:done, query}
 
       {:error, _reason} = error ->
         error
@@ -73,6 +77,10 @@ defmodule Exadb.Query do
 
   @doc """
   Streams cursor pages until ArangoDB reports there are no more results.
+
+  Each element emitted is the raw cursor response map (containing `"result"`,
+  `"id"`, `"hasMore"`, etc.). The stream halts silently when the cursor is
+  exhausted. Network or AQL errors also halt the stream.
   """
   def cursor_stream(query, opt \\ []) do
     %{dblink: dblink} = Tools.dblink_opts(opt)
@@ -81,8 +89,9 @@ defmodule Exadb.Query do
       fn -> query end,
       fn current ->
         case cursor(current, dblink: dblink) do
+          {:done, _} -> {:halt, :done}
           {:error, reason} -> {:halt, reason}
-          result -> {[result], result}
+          {:ok, result} -> {[result], result}
         end
       end,
       fn _last -> :ok end
@@ -91,7 +100,7 @@ defmodule Exadb.Query do
 
   defp cursor_result(result) do
     case result do
-      %{"result" => _result} -> result
+      %{"result" => _result} -> {:ok, result}
       %{"error" => true, "errorMessage" => message} -> {:error, message}
       %{"code" => 404} -> {:error, :not_found}
       unknown -> {:error, unknown}

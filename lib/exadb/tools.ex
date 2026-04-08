@@ -17,22 +17,23 @@ defmodule Exadb.Tools do
     {:error, error_message}
   end
 
-  def format_api_error(any), do: any
+  def format_api_error(any), do: {:ok, any}
 
   def format_api_error(%{"errorMessage" => error_message}, _dataset) do
     {:error, error_message}
   end
 
   def format_api_error(keyrevid, dataset) when is_map(dataset) and is_map(keyrevid) do
-    Map.merge(dataset, keyrevid)
+    {:ok, Map.merge(dataset, keyrevid)}
   end
 
   def format_api_error(keyrevid, dataset) when is_list(dataset) and is_list(keyrevid) do
     if length(dataset) == length(keyrevid) do
-      Enum.zip(dataset, keyrevid)
-      |> Enum.map(fn {data, meta} -> Map.merge(data, meta) end)
+      {:ok,
+       Enum.zip(dataset, keyrevid)
+       |> Enum.map(fn {data, meta} -> Map.merge(data, meta) end)}
     else
-      keyrevid
+      {:ok, keyrevid}
     end
   end
 
