@@ -31,8 +31,6 @@ Exadb.Collection.get_all(db_opts)
 Use `Exadb.Index` when a collection needs explicit indexes.
 
 ```elixir
-dblink = Exadb.Api.db(nil, db_opts)
-
 Exadb.Index.new(
   "users",
   %{
@@ -40,15 +38,15 @@ Exadb.Index.new(
     "fields" => ["email"],
     "unique" => true
   },
-  dblink
+  db_opts
 )
 ```
 
 You can also list or delete indexes:
 
 ```elixir
-Exadb.Index.list("users", dblink)
-Exadb.Index.clean_list("users", dblink)
+Exadb.Index.list("users", db_opts)
+Exadb.Index.clean_list("users", db_opts)
 ```
 
 ## Graphs
@@ -56,8 +54,6 @@ Exadb.Index.clean_list("users", dblink)
 Named graph setup stays compact.
 
 ```elixir
-dblink = Exadb.Api.db(nil, db_opts)
-
 Exadb.Graph.new(
   "social",
   [
@@ -68,7 +64,7 @@ Exadb.Graph.new(
     }
   ],
   [],
-  dblink
+  db_opts
 )
 ```
 

@@ -21,7 +21,7 @@ export ADB_DB=app
 ```
 
 ```elixir
-Exadb.Doc.get(%{"email" => "jane@example.com"}, 10, col: "users")
+{:ok, results} = Exadb.Doc.get(%{"email" => "jane@example.com"}, 10, col: "users")
 ```
 
 Explicit per-call usage:
@@ -29,7 +29,7 @@ Explicit per-call usage:
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app", col: "users"]
 
-Exadb.Doc.get(%{"email" => "jane@example.com"}, 10, opts)
+{:ok, results} = Exadb.Doc.get(%{"email" => "jane@example.com"}, 10, opts)
 ```
 
 Use environment variables when most of your application talks to one database.
@@ -41,7 +41,7 @@ Use explicit options when you are writing scripts, admin tooling, tests, or mult
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app", col: "users"]
 
-user = Exadb.Doc.fetch("users/123", opts)
+{:ok, user} = Exadb.Doc.fetch("users/123", opts)
 
 user
 |> Map.put("display_name", "Jane Doe")

@@ -7,7 +7,7 @@ Use `Exadb.Query` when the shape of the work is better expressed in AQL than in 
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app"]
 
-Exadb.Query.run(
+{:ok, users} = Exadb.Query.run(
   "FOR user IN users FILTER user.email == @email RETURN user",
   %{email: "jane@example.com"},
   opts
@@ -21,7 +21,7 @@ This is a good fit when you already know the query you want and just need a smal
 For larger result sets or multi-page reads, use `cursor/2`.
 
 ```elixir
-first_page =
+{:ok, first_page} =
   Exadb.Query.cursor(
     %{
       query: "FOR user IN users SORT user.email RETURN user",
@@ -31,7 +31,9 @@ first_page =
   )
 ```
 
-If ArangoDB returns a cursor ID and more results are available, passing that result back to `cursor/2` fetches the next page.
+If ArangoDB returns a cursor ID and more results are available, passing that result back
+to `cursor/2` fetches the next page. When no more pages remain, `cursor/2` returns
+`{:done, last_page}` instead of `{:ok, page}`.
 
 ## Streaming cursor pages
 
@@ -49,6 +51,9 @@ Exadb.Query.cursor_stream(
   IO.inspect(page["result"])
 end)
 ```
+
+Each element emitted by the stream is the raw cursor response map. The stream halts
+automatically when the cursor is exhausted or an error occurs.
 
 This is especially useful for:
 

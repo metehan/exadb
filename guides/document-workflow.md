@@ -17,9 +17,9 @@ That keeps application code close to the database shape and makes small changes 
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app", col: "users"]
 
-user = Exadb.Doc.fetch("users/123", opts)
+{:ok, user} = Exadb.Doc.fetch("users/123", opts)
 
-updated_user =
+{:ok, updated_user} =
   user
   |> Map.put("display_name", "Jane Doe")
   |> Map.update("tags", ["customer"], fn tags -> Enum.uniq(tags ++ ["customer"]) end)
@@ -40,8 +40,9 @@ This removes a lot of branching from application code.
 If you want to reuse a fetched document as the basis for a new record, use `persist_new/2`.
 
 ```elixir
-copy =
-  Exadb.Doc.fetch("users/123", opts)
+{:ok, fetched} = Exadb.Doc.fetch("users/123", opts)
+{:ok, copy} =
+  fetched
   |> Map.put("email", "new@example.com")
   |> Exadb.Doc.persist_new(opts)
 ```
@@ -53,8 +54,8 @@ copy =
 Use `get/3` and `get_one/2` when you want simple field-based lookups without writing AQL manually.
 
 ```elixir
-Exadb.Doc.get(%{"active" => true}, 100, opts)
-Exadb.Doc.get_one(%{"email" => "jane@example.com"}, opts)
+{:ok, users} = Exadb.Doc.get(%{"active" => true}, 100, opts)
+user = Exadb.Doc.get_one(%{"email" => "jane@example.com"}, opts)
 ```
 
 ## List properties

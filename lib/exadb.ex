@@ -21,6 +21,22 @@ defmodule Exadb do
   Exadb returns plain maps instead of structs, which keeps it easy to integrate
   into existing code, scripts, background jobs, and operational tooling.
 
+  ## Return values
+
+  All public functions return `{:ok, value}` on success or `{:error, message}`
+  on failure, where `message` is a binary description of the error.
+
+  Notable exceptions:
+
+  - `Exadb.Doc.get_one/2` returns the document map directly, `nil` when no
+    document matches, or `{:error, message}` on failure.
+  - `Exadb.Doc.get_property/3` returns the property value directly, `nil` when
+    the property is absent, or `{:error, message}` on failure.
+  - `Exadb.Doc.is_there?/2` returns a boolean directly, or `{:error, term}` on
+    failure.
+  - `Exadb.Query.cursor/2` additionally returns `{:done, last_page}` when a
+    cursor is exhausted and there are no further pages.
+
   Most functions accept the same option set:
 
   - `:url` ArangoDB host and port, for example `"localhost:8529"`

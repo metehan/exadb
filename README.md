@@ -102,9 +102,9 @@ That means the common edit cycle stays clean:
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app", col: "users"]
 
-user = Exadb.Doc.fetch("users/123", opts)
+{:ok, user} = Exadb.Doc.fetch("users/123", opts)
 
-updated_user =
+{:ok, updated_user} =
   user
   |> Map.put("display_name", "Jane Doe")
   |> Map.put("active", true)
@@ -134,7 +134,7 @@ For straightforward AQL execution:
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app"]
 
-Exadb.Query.run(
+{:ok, users} = Exadb.Query.run(
   "FOR user IN users FILTER user.active == @active SORT user.email RETURN user",
   %{active: true},
   opts
@@ -144,7 +144,7 @@ Exadb.Query.run(
 For cursor-based reads, start a cursor with a map:
 
 ```elixir
-first_page =
+{:ok, first_page} =
   Exadb.Query.cursor(
     %{
       query: "FOR user IN users SORT user.email RETURN user",
@@ -154,7 +154,9 @@ first_page =
   )
 ```
 
-If ArangoDB returns more results, pass the cursor response back into `Exadb.Query.cursor/2` to fetch the next page.
+If ArangoDB returns more results, pass the cursor response back into `Exadb.Query.cursor/2`
+to fetch the next page. When the cursor is exhausted, `cursor/2` returns `{:done, last_page}`
+instead of `{:ok, page}`.
 
 If you want a cleaner streaming model, use `Exadb.Query.cursor_stream/2`:
 
@@ -188,7 +190,7 @@ For new data, just pass a plain map:
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app", col: "users"]
 
-created =
+{:ok, created} =
   Exadb.Doc.persist(%{
     "email" => "jane@example.com",
     "display_name" => "Jane",
@@ -205,7 +207,7 @@ created["_id"]
 If you fetched a document and want to store it as a fresh record instead of updating the existing one, use `persist_new/2`.
 
 ```elixir
-copy =
+{:ok, copy} =
   created
   |> Map.put("email", "copy@example.com")
   |> Exadb.Doc.persist_new(opts)
@@ -220,10 +222,10 @@ Exadb is at its best when your application logic is document-centric.
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app", col: "users"]
 
-created = Exadb.Doc.persist(%{"email" => "jane@example.com", "tags" => ["new"]}, opts)
-found = Exadb.Doc.fetch(created["_id"], opts)
+{:ok, created} = Exadb.Doc.persist(%{"email" => "jane@example.com", "tags" => ["new"]}, opts)
+{:ok, found} = Exadb.Doc.fetch(created["_id"], opts)
 
-retagged =
+{:ok, retagged} =
   found
   |> Map.put("tags", ["new", "customer"])
   |> Exadb.Doc.persist(opts)
@@ -249,7 +251,7 @@ For AQL-heavy parts of an application, use `Exadb.Query`.
 ```elixir
 opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app"]
 
-Exadb.Query.run(
+{:ok, users} = Exadb.Query.run(
   "FOR user IN users FILTER user.email == @email RETURN user",
   %{email: "jane@example.com"},
   opts
@@ -264,7 +266,6 @@ Schema-level operations stay just as direct.
 
 ```elixir
 db_opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app"]
-dblink = Exadb.Api.db(nil, db_opts)
 
 Exadb.Collection.new_collection("users", %{}, db_opts)
 Exadb.Collection.new_edge("follows", %{}, db_opts)
@@ -272,7 +273,7 @@ Exadb.Collection.new_edge("follows", %{}, db_opts)
 Exadb.Index.new(
   "users",
   %{"type" => "persistent", "fields" => ["email"], "unique" => true},
-  dblink
+  db_opts
 )
 ```
 
@@ -284,7 +285,6 @@ When you need named graph setup, Exadb keeps that API small too:
 
 ```elixir
 db_opts = [url: "localhost:8529", user: "root", pwd: "secret", db: "app"]
-dblink = Exadb.Api.db(nil, db_opts)
 
 Exadb.Graph.new(
   "social",
@@ -296,7 +296,7 @@ Exadb.Graph.new(
     }
   ],
   [],
-  dblink
+  db_opts
 )
 ```
 
